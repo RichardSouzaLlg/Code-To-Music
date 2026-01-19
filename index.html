@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Code to Music Synthesizer</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Fira Code', monospace;
+            background-color: #1a202c; 
+            color: #e2e8f0; 
+        }
+        textarea {
+            background-color: #2d3748; 
+            border: 1px solid #4a5568;
+            color: #f7fafc;
+            caret-color: #63b3ed;
+        }
+        button {
+            transition: all 0.2s ease-in-out;
+        }
+        button:hover {
+            transform: translateY(-2px);
+        }
+        button:active {
+            transform: translateY(0);
+        }
+    </style>
+</head>
+<body class="flex flex-col items-center justify-center min-h-screen p-6">
+
+    <main class="w-full max-w-3xl bg-[#2d3748] rounded-xl shadow-2xl p-8 border border-[#4a5568]">
+        <h1 class="text-3xl font-bold text-center mb-6 text-green-400">🎶 Code to Music Synthesizer</h1>
+        <p class="text-center mb-8 text-gray-400">Cole seu código abaixo e ouça a melodia que ele esconde.</p>
+
+        <textarea 
+            id="code-input" 
+            rows="15" 
+            placeholder="// Cole seu JavaScript, Python, C# aqui..."
+            class="w-full p-4 mb-6 rounded-lg text-sm focus:ring-2 focus:ring-green-500 focus:outline-none"
+        ></textarea>
+
+        <div class="flex justify-center gap-4">
+            <button 
+                onclick="synthesizeCode()"
+                class="bg-green-600 hover:bg-green-500 text-white font-bold py-3 px-8 rounded-full shadow-lg"
+            >
+                Tocar Código!
+            </button>
+            <button 
+                onclick="stopMusic()"
+                class="bg-red-600 hover:bg-red-500 text-white font-bold py-3 px-8 rounded-full shadow-lg"
+            >
+                Parar
+            </button>
+        </div>
+        
+        <p id="status-message" class="text-center mt-6 text-sm text-gray-500">Pronto para a sinfonia...</p>
+    </main>
+
+    <script>
+        let audioContext;
+        let oscillators = [];
+        let currentTimeout; 
+
+        function initAudioContext() {
+            if (!audioContext) {
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            }
+        }
+
+        const noteMap = {
+            'if': 261.63, // C4
+            'else': 293.66, // D4
+            'for': 329.63, // E4
+            'while': 349.23, // F4
+            'function': 392.00, // G4
+            'class': 440.00, // A4
+            'const': 493.88, // B4
+            'let': 523.25, // C5
+            'var': 554.37, // C#5
+            ';': 100, // Low bass thump
+            '{': 659.25, // E5 (higher for block start)
+            '}': 523.25, // C5 (lower for block end)
+            '//': 783.99, // G5 (for comments, lighter sound)
+            '/*': 783.99, // G5
+            '*/': 783.99, // G5
+            '=': 440.00, // A4
+            '>': 493.88, // B4
+            '<': 493.88, // B4
+            '!': 200, // Distorted note for negation
+            'async': 880.00, // A5 (very high)
+            'await': 830.61, // G#5
+            'try': 698.46, // F5
+            'catch': 622.25, // D#5
+            'throw': 369.99, // F#4 (discordant)
+            'return': 587.33 // D5
+   
+        };
+
+        function playTone(frequency, duration = 0.1, volume = 0.5) {
+            if (!audioContext) return;
+
+            const gainNode = audioContext.createGain();
+            gainNode.gain.setValueAtTime(volume, audioContext.currentTime);
+
+            const oscillator = audioContext.createOscillator();
+            oscillator.type = 'sine'; 
+            oscillator.frequency.setValueAtTime(frequency, audioContext.currentTime);
+            
+            oscillator.connect(gainNode).connect(audioContext.destination);
+            oscillator.start();
+            oscillators.push(oscillator);
+            
+            gainNode.gain.exponentialRampToValueAtTime(0.001, audioContext.currentTime + duration);
+            oscillator.stop(audioContext.currentTime + duration);
+        }
+
+        function stopMusic() {
+            clearTimeout(currentTimeout); 
+            oscillators.forEach(osc => {
+                try {
+                    osc.stop();
+                    osc.disconnect();
+                } catch (e) {
+
+                }
+            });
+            oscillators = [];
+            document.getElementById('status-message').innerText = "Música parada.";
+        }
+
+        async function synthesizeCode() {
+            stopMusic();
+            initAudioContext();
+            
+            const codeInput = document.getElementById('code-input').value;
+            const statusMessage = document.getElementById('status-message');
+            
+            if (codeInput.trim() === "") {
+                statusMessage.innerText = "Cole algum código para começar!";
+                return;
+            }
+
+            const tokens = tokenizeCode(codeInput);
+            statusMessage.innerText = `Sintetizando ${tokens.length} tokens...`;
+            
+            let delay = 0;
+            for (const token of tokens) {
+                currentTimeout = setTimeout(() => {
+                    const freq = noteMap[token.toLowerCase()];
+                    if (freq) {
+                        playTone(freq, 0.15, 0.6); 
+                    } else if (token.trim().length > 0) {
+
+                        const charCode = token.charCodeAt(0) || 0;
+                        playTone(220 + (charCode % 100), 0.08, 0.3); 
+                    } else {
+
+                    }
+                }, delay);
+                delay += 150; 
+            }
+            
+            currentTimeout = setTimeout(() => {
+                statusMessage.innerText = "Sinfonia do código concluída!";
+            }, delay);
+        }
+
+
+        function tokenizeCode(code) {
+
+            return code.split(/(\bif\b|\belse\b|\bfor\b|\bwhile\b|\bfunction\b|\bclass\b|\bconst\b|\blet\b|\bvar\b|\basync\b|\bawait\b|\btry\b|\bcatch\b|\bthrow\b|\breturn\b|;|\{|\}|\/\/|\/\*|\*\/|=|>|<|!|\s+)/g)
+                       .filter(token => token.trim() !== '');
+        }
+    </script>
+</body>
+</html>
